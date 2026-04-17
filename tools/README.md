@@ -22,6 +22,36 @@ ollama pull schroneko/llama-3.1-swallow-8b-instruct-v0.1:latest
 ollama serve
 ```
 
+## 推奨モデル（ハードウェア別）
+
+リライト用途では「命令追従の強さ」「日本語の自然さ」「コード改変耐性」がモノを言います。コンテキスト長 16〜32k を使う前提で、**モデル本体で 25 GB 以内**に収まる範囲から選んでいます。
+
+| メモリ | モデル | ollama pull 名 | サイズ目安 |
+| --- | --- | --- | --- |
+| 8〜16 GB | Swallow 8B (デフォルト) | `schroneko/llama-3.1-swallow-8b-instruct-v0.1` | ~5 GB |
+| 8〜16 GB | Qwen2.5 7B | `qwen2.5:7b-instruct-q4_K_M` | ~5 GB |
+| 8〜16 GB | Gemma 2 9B | `gemma2:9b-instruct-q4_K_M` | ~6 GB |
+| 16〜24 GB | **Qwen2.5 14B** ⭐ | `qwen2.5:14b-instruct-q5_K_M` | ~11 GB |
+| 16〜24 GB | Phi-4 14B | `phi4:14b` | ~9 GB |
+| 24〜32 GB | **Qwen2.5 32B** ⭐ | `qwen2.5:32b-instruct-q4_K_M` | ~20 GB |
+| 24〜32 GB | Gemma 2 27B (Q5) | `gemma2:27b-instruct-q5_K_M` | ~21 GB |
+
+⭐ = その帯でまず試すと良い一手
+
+迷ったら **`qwen2.5:14b-instruct`** から始めるのが安全です。日本語の自然さを最優先するなら Gemma 2 27B、`--deai` モードや厳しめの style_template に追従させたいなら Phi-4 14B が効きます。
+
+### モデルを切り替える
+
+```bash
+# 環境変数で毎回指定不要に
+export NOTE_REWRITER_MODEL=qwen2.5:14b-instruct
+
+# 単発で変える
+python article_rewriter.py draft.md --platform note --model gemma2:27b-instruct-q5_K_M
+```
+
+32 GB を超えるモデル（Qwen2.5 72B / Llama 3.3 70B / Swallow 70B など）は現状メモリの壁があるため、環境が整ったら追記予定です。
+
 ## article_rewriter.py
 
 note / Qiita / Zenn の記事 (URL またはローカル .md) を、ローカル LLM で自分の文体に書き直します。

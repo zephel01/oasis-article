@@ -72,6 +72,8 @@ ollama pull schroneko/llama-3.1-swallow-8b-instruct-v0.1:latest
 ollama serve
 ```
 
+> 🦙 **使う Ollama モデルの選び方**（16 / 24 / 32 GB 別の推奨表）は [tools/README.md#推奨モデルハードウェア別](./tools/README.md#推奨モデルハードウェア別) を参照。迷ったら `qwen2.5:14b-instruct` から。
+
 ### 依存インストール
 
 ```bash
