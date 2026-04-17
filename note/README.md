@@ -1,81 +1,52 @@
-# Notemake
+# note
 
-Note.com 記事のリライト・AI 臭除去・品質評価を行う CLI ツールキットです。すべての LLM 処理はローカルの [Ollama](https://ollama.ai/) で完結し、外部 API への送信は一切ありません。
+[note.com](https://note.com/) 向けの記事ワークスペース。下書きやリライト前後の記事を `articles/` に置き、リライト・AI 臭除去は共通ツール `../tools/article_rewriter.py` を使います。
 
-## 特徴
+## ディレクトリ
 
-- **AI 臭の検出と除去** — ChatGPT / Claude / Gemini / Grok が生成しがちな 40 以上の表現パターンを検出し、自分の文体にリライト
-- **Note.com 記事の直接取得** — URL を渡すだけで記事本文を自動取得（API → HTML フォールバック）
-- **ローカル LLM で完結** — Ollama を使い、データが外部に出ない安心設計
-- **文体テンプレート** — 自分の書き癖を定義したテンプレートでリライトの方向性を制御
-- **4 軸の品質評価** — 文章品質・構成・SEO・Note 最適化をスコアリング
-- **コードブロック保護** — ソースコードや図表を LLM の改変から自動で保護
-- **HEIC → PNG 一括変換** — iPhone 写真などの HEIC 画像をリサイズ付きで PNG に変換
+```
+note/
+├── README.md
+├── articles/    # 下書き・リライト後の記事 (*.md)
+└── templates/   # note 向けの構成テンプレート
+```
 
-## クイックスタート
-
-### 必要環境
-
-- Python 3.12+
-- [Ollama](https://ollama.ai/)
-
-### セットアップ
+## 執筆フロー
 
 ```bash
-# 依存パッケージ
-pip install -r requirements.txt
+# 1. テンプレートをコピーして下書きを作る
+cp templates/essay.md articles/$(date +%Y%m%d)-slug.md
 
-# Ollama モデルの取得と起動
-ollama pull schroneko/llama-3.1-swallow-8b-instruct-v0.1:latest
-ollama serve
+# 2. 書く
+$EDITOR articles/$(date +%Y%m%d)-slug.md
+
+# 3. AI 臭チェック（LLM 不要）
+python ../tools/article_rewriter.py articles/$(date +%Y%m%d)-slug.md --deai
+
+# 4. ローカル LLM で文体リライト
+python ../tools/article_rewriter.py articles/$(date +%Y%m%d)-slug.md \
+  --platform note \
+  --output articles/$(date +%Y%m%d)-slug-rewritten
+
+# 5. できあがった Markdown を note.com の編集画面にコピペ
 ```
 
-### 使い方
+## note.com 投稿時のポイント
 
-```bash
-# Note.com 記事をリライト
-python note_rewriter.py https://note.com/user/n/nXXXXXXX
+- 本文は Markdown で書いておき、note.com の編集画面では **リッチテキスト** に貼り付けると多くの装飾が維持されます
+- 見出しは H2 / H3 まで。note は H4 以降を細かく区別しません
+- `:::message` や `<details>` など Zenn / Qiita の独自記法は note では効かないので使わない
+- 画像はキャプションを前提に並べる（「↑ 実測結果の一枚」など）
 
-# ローカルファイルをリライト
-python note_rewriter.py article_draft.md
+## テンプレート
 
-# AI 臭検出のみ（LLM 不要）
-python note_rewriter.py article_draft.md --deai
+| ファイル | 想定用途 |
+| --- | --- |
+| `templates/essay.md` | 所感・日記・長めのエッセイ |
+| `templates/tech-note.md` | 技術ネタの note 化（Qiita/Zenn ほど硬くしない） |
+| `templates/review.md` | 製品 / ツールのレビュー |
 
-# 品質評価レポートを生成
-python note_rewriter.py article_draft.md --evaluate
+## 関連
 
-# HEIC 画像を PNG に変換
-python heic_to_png.py ~/Pictures -o output/ --width 1920
-```
-
-## ツール一覧
-
-| ツール | 概要 |
-|---|---|
-| `note_rewriter.py` | 記事リライト・AI 臭除去・品質評価 |
-| `heic_to_png.py` | HEIC/HEIF → PNG 一括変換 |
-
-## ドキュメント
-
-- **[利用ガイド（USAGE.md）](USAGE.md)** — 全コマンド・オプション・環境変数の詳細リファレンス
-- **[詳細マニュアル](docs/note_rewriter_manual.md)** — note_rewriter の設計と使い方
-- **[文体テンプレート例](docs/style_template.md)** — カスタムテンプレートの書き方
-
-## プロジェクト構成
-
-```
-notemake/
-├── note_rewriter.py        # 記事リライトツール
-├── heic_to_png.py          # 画像変換ツール
-├── requirements.txt        # 依存パッケージ
-├── docs/                   # ドキュメント
-├── note/                   # リライト済み記事
-├── logs/                   # 実行ログ
-└── png/                    # 変換済み画像
-```
-
-## 注意事項
-
-- Note.com 記事の取得には非公式 API を使用しています。利用規約をご確認ください。
-- Ollama のモデルは用途に合わせて変更可能です（`--model` オプション）。
+- 共通ツール: [../tools/README.md](../tools/README.md)
+- note 向け文体テンプレ: [../tools/templates/note.md](../tools/templates/note.md)

@@ -1,46 +1,46 @@
 #!/usr/bin/env python3
 """
-note_rewriter.py
+article_rewriter.py
 ────────────────────────────────────────────────────────────
-Note記事のAI臭を除去してMarkdownに書き直すスクリプト (v4)。
-スタイルテンプレートを読み込んで自分の文体に合わせてリライトできる。
+note / Qiita / Zenn の記事を対象に、AI臭を除去して自分の文体にリライトする
+ローカル LLM ツール (v5)。
 
-v4 の改善点:
-  - ローカルの .md / .txt ファイルを直接入力できるように
+v5 の改善点:
+  - --platform {note,qiita,zenn} フラグでターゲット媒体を指定
+    → 媒体ごとのスタイルテンプレートを自動選択 (templates/<platform>.md)
+    → 媒体固有の記法 (Zenn の :::message、Qiita の > **Note**) を考慮した指示
+
+v4:
+  - ローカルの .md / .txt ファイルを直接入力できる
   - --deai オプション: AI臭チェック＆修正提案モード（LLMリライトなし）
   - ソース引数が URL でもファイルパスでも自動判定
 
-v3 の改善点:
+v3:
   - --format オプションで出力形式を選択可能 (md / txt / html)
-  - 複数フォーマットの同時出力に対応 (--format md,txt,html)
 
-v2 の改善点:
-  - コードブロックをプレースホルダで保護し、LLMに一切触らせない
-  - ストリーミング中の強力な反復検出・早期中断
-  - リライト後に差分検証し、コードブロック改変があれば原文に差し戻し
-  - プロンプトエコー（指示文のオウム返し）の徹底除去
-  - セクション分割時のコードブロック境界保護
+v2:
+  - コードブロックをプレースホルダで保護
+  - ストリーミング反復検出、差分検証、プロンプトエコー除去
 
 使い方:
-  python note_rewriter.py https://note.com/user/n/nXXXXXXX
-  python note_rewriter.py article_draft.md
-  python note_rewriter.py article_draft.md --deai
-  python note_rewriter.py https://note.com/user/n/nXXXXXXX --template style_template.md
-  python note_rewriter.py https://note.com/user/n/nXXXXXXX --model qwen2.5:14b
-  python note_rewriter.py https://note.com/user/n/nXXXXXXX --format txt
-  python note_rewriter.py https://note.com/user/n/nXXXXXXX --format md,txt,html
-  python note_rewriter.py https://note.com/user/n/nXXXXXXX --dry-run
+  python article_rewriter.py article_draft.md --platform note
+  python article_rewriter.py article_draft.md --platform qiita
+  python article_rewriter.py article_draft.md --platform zenn
+  python article_rewriter.py https://note.com/user/n/nXXXXXXX --platform note
+  python article_rewriter.py article_draft.md --deai               # AI臭検出のみ
+  python article_rewriter.py article_draft.md --template my.md     # 任意テンプレ指定
 
 オプション:
-  --template    文体テンプレートのパス (なければデフォルトの指示を使用)
+  --platform    note / qiita / zenn (デフォルト: note)。媒体別テンプレを自動選択
+  --template    文体テンプレートのパス (--platform より優先)
   --model       Ollamaモデル名 (デフォルト: 環境変数 NOTE_REWRITER_MODEL または LFM-2.5-JP)
-  --output      出力先ファイルパス (拡張子は --format に合わせて自動付与)
-  --format      出力形式: md, txt, html (カンマ区切りで複数指定可。デフォルト: md)
+  --output      出力先ファイルパス
+  --format      出力形式: md, txt, html (カンマ区切りで複数指定可)
   --host        OllamaホストURL (デフォルト: http://localhost:11434)
   --dry-run     原文取得のみ、LLMは呼ばない
   --no-title    タイトルはリライトしない
   --chunk-size  1回のLLM呼び出しに渡す最大文字数
-  --deai        AI臭チェック＆修正提案モード (LLMリライトなしでパターンマッチ検出)
+  --deai        AI臭チェック＆修正提案モード
 """
 
 import argparse
@@ -149,6 +149,40 @@ PROMPT_ECHO_PATTERNS = [
 ]
 
 DEFAULT_TEMPLATE_NAMES = ["style_template.md", "my_style.md", "template.md"]
+
+# プラットフォーム別テンプレートの検索順
+# (script_dir からの相対パスで、最初に見つかったものが使われる)
+PLATFORM_TEMPLATE_MAP = {
+    "note":  ["templates/note.md",  "templates/common.md"],
+    "qiita": ["templates/qiita.md", "templates/common.md"],
+    "zenn":  ["templates/zenn.md",  "templates/common.md"],
+}
+SUPPORTED_PLATFORMS = ("note", "qiita", "zenn")
+
+# プラットフォーム別の記法・追加指示
+PLATFORM_NOTES = {
+    "note": (
+        "出力先は note.com です。note には独自の Markdown 拡張記法はほぼ無いので、"
+        "装飾は見出し (##, ###) と箇条書き、引用 (>) のみに絞ってください。"
+        "コードブロックは言語指定なしでもよい。"
+    ),
+    "qiita": (
+        "出力先は Qiita です。以下の Qiita 記法を活用してください:\n"
+        "- 警告/注意は > **Note**:・> **Warning**: ブロックで表現\n"
+        "- 折りたたみは <details><summary>…</summary>…</details>\n"
+        "- コードブロックは言語指定 + ファイル名 (```python:main.py) を付ける\n"
+        "- 見出しは ## 以降を使う (タイトルは Front Matter の title)"
+    ),
+    "zenn": (
+        "出力先は Zenn です。以下の Zenn 記法を活用してください:\n"
+        "- メッセージボックス :::message / :::message alert / :::\n"
+        "- アコーディオン :::details タイトル / ::: \n"
+        "- コードブロックは言語指定 + ファイル名 (```ts:index.ts) を付ける\n"
+        "- 差分表示は ```diff ts を使う\n"
+        "- リンクカードは URL を1行で置くだけでよい\n"
+        "- 見出しは ## 以降 (タイトルは Front Matter)"
+    ),
+}
 
 DEFAULT_STYLE_INSTRUCTIONS = """
 ## 文体の方針
@@ -482,8 +516,17 @@ class CodeBlockProtector:
 # テンプレート読み込み
 # ═════════════════════════════════════════════
 
-def load_template(template_path: str | None, script_dir: Path) -> str:
-    """テンプレートファイルを読み込む。見つからない場合はデフォルトを返す"""
+def load_template(template_path: str | None, script_dir: Path,
+                  platform: str = "note") -> str:
+    """テンプレートファイルを読み込む。
+
+    優先度:
+      1) --template で明示指定されたパス
+      2) --platform に対応する templates/<platform>.md
+      3) templates/common.md
+      4) script_dir 直下の DEFAULT_TEMPLATE_NAMES
+      5) 組み込みの DEFAULT_STYLE_INSTRUCTIONS
+    """
     if template_path:
         p = Path(template_path)
         if not p.exists():
@@ -493,6 +536,16 @@ def load_template(template_path: str | None, script_dir: Path) -> str:
         print(f"       → テンプレート読み込み: {p.name}")
         return content
 
+    # プラットフォーム別の候補を先に探す
+    platform_candidates = PLATFORM_TEMPLATE_MAP.get(platform, [])
+    for rel in platform_candidates:
+        p = script_dir / rel
+        if p.exists():
+            content = p.read_text(encoding="utf-8")
+            print(f"       → テンプレート自動検出 ({platform}): {rel}")
+            return content
+
+    # 旧来のデフォルト名
     for name in DEFAULT_TEMPLATE_NAMES:
         p = script_dir / name
         if p.exists():
@@ -504,13 +557,18 @@ def load_template(template_path: str | None, script_dir: Path) -> str:
     return DEFAULT_STYLE_INSTRUCTIONS
 
 
-def build_system_prompt(style_guide: str) -> str:
-    """スタイルガイドからシステムプロンプトを構築"""
+def build_system_prompt(style_guide: str, platform: str = "note") -> str:
+    """スタイルガイドとプラットフォームからシステムプロンプトを構築"""
+    platform_block = PLATFORM_NOTES.get(platform, "")
+    platform_section = (
+        f"\n【出力先プラットフォーム】\n{platform_block}\n"
+        if platform_block else ""
+    )
     return f"""あなたは日本語技術ブログのリライターです。
 以下のスタイルガイドに従って文章を書き直してください。
 
 {style_guide}
-
+{platform_section}
 【必ず守ること】
 - 技術的な内容（コマンド、設定値、モデル名、バージョン等）は絶対に変えない
 - 【CODE_BLOCK_N】のようなプレースホルダはそのまま一字一句変えずに残す
@@ -1026,12 +1084,13 @@ def rewrite_article(
     style_guide: str,
     rewrite_title: bool = True,
     chunk_size: int | None = None,
+    platform: str = "note",
 ) -> str:
     """記事全体をリライトしてMarkdown文字列を返す"""
     title = article["title"]
     body = article["body_text"]
     url = article["url"]
-    system = build_system_prompt(style_guide)
+    system = build_system_prompt(style_guide, platform=platform)
 
     effective_chunk = chunk_size if chunk_size else guess_chunk_size(model)
     print(f"\n[2/3] リライト開始 (model: {model}, chunk: {effective_chunk}文字)")
@@ -1979,25 +2038,26 @@ def main():
     global log
 
     parser = argparse.ArgumentParser(
-        description="Note記事をローカルLLMで自分の文体にリライトするツール (v4)",
+        description="note / Qiita / Zenn 記事をローカルLLMで自分の文体にリライトするツール (v5)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 例:
-  python note_rewriter.py https://note.com/zephel01/n/n1fce90d35555
-  python note_rewriter.py article_draft.md
-  python note_rewriter.py article_draft.md --deai
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --model qwen3.5:9b
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --template my_style.md
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --format txt
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --format md,txt,html
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --dry-run
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --evaluate
-  python note_rewriter.py https://note.com/zephel01/n/nXXX --evaluate-only
+  python article_rewriter.py draft.md --platform note
+  python article_rewriter.py draft.md --platform qiita
+  python article_rewriter.py draft.md --platform zenn
+  python article_rewriter.py https://note.com/zephel01/n/nXXX --platform note
+  python article_rewriter.py draft.md --deai                       # AI臭検出のみ
+  python article_rewriter.py draft.md --template my_style.md
+  python article_rewriter.py draft.md --format md,txt,html
+  python article_rewriter.py draft.md --dry-run
+  python article_rewriter.py draft.md --evaluate
         """
     )
-    parser.add_argument("source", help="NoteのURL または ローカルの .md/.txt ファイルパス")
+    parser.add_argument("source", help="記事のURL または ローカルの .md/.txt ファイルパス")
+    parser.add_argument("--platform", default="note", choices=list(SUPPORTED_PLATFORMS),
+                        help="出力先プラットフォーム: note / qiita / zenn (デフォルト: note)")
     parser.add_argument("--template", default=None,
-                        help="文体テンプレートファイル (例: style_template.md)")
+                        help="文体テンプレートファイル (--platform より優先)")
     parser.add_argument("--model", default=DEFAULT_MODEL,
                         help=f"Ollamaモデル名 (デフォルト: {DEFAULT_MODEL}、環境変数 NOTE_REWRITER_MODEL で変更可)")
     parser.add_argument("--output", default=None,
@@ -2026,8 +2086,9 @@ def main():
     # ── ロガー初期化 ──────────────────────────────
     log = setup_logger(args.log_dir)
     log.info("=" * 60)
-    log.info(f"note_rewriter v4 起動")
+    log.info(f"article_rewriter v5 起動")
     log.info(f"  source: {args.source}")
+    log.info(f"  platform: {args.platform}")
     log.info(f"  model: {args.model}")
     log.info(f"  format: {args.formats}")
     log.info(f"  host: {args.host}")
@@ -2064,7 +2125,7 @@ def main():
         sys.exit(1)
 
     # ── テンプレート読み込み ──────────────────────
-    style_guide = load_template(args.template, script_dir)
+    style_guide = load_template(args.template, script_dir, platform=args.platform)
     log.debug(f"テンプレート内容:\n{style_guide[:500]}...")
 
     # ── dry-run ──────────────────────────────────
@@ -2180,6 +2241,7 @@ def main():
             article, args.model, args.host, style_guide,
             rewrite_title=rewrite_title_flag,
             chunk_size=args.chunk_size,
+            platform=args.platform,
         )
     except RuntimeError as e:
         log.error(f"リライト失敗: {e}")
