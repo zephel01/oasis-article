@@ -1,0 +1,30 @@
+{
+  "name": "zenn-content",
+  "version": "1.0.0",
+  "description": "Zenn.dev 用記事・本の管理リポジトリ（GitHub連携）",
+  "private": true,
+  "scripts": {
+    "dev": "zenn preview",
+    "preview": "zenn preview",
+    "new:article": "zenn new:article",
+    "new:book": "zenn new:book",
+    "article:from-draft": "node scripts/new-from-draft.js",
+    "lint": "textlint \"**/*.{md,mdx}\"",
+    "lint:fix": "textlint --fix \"**/*.{md,mdx}\""
+  },
+  "dependencies": {
+    "zenn-cli": "^0.4.7"
+  },
+  "devDependencies": {
+    "textlint": "^14.0.0",
+    "textlint-rule-preset-ja-technical-writing": "^10.0.0",
+    "textlint-rule-preset-ja-spacing": "^2.0.0",
+    "textlint-rule-no-exclamation-question-mark": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zephel01/zenn-content.git"
+  },
+  "author": "くーるぜろ",
+  "license": "CC-BY-4.0"
+}

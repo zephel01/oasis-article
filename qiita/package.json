@@ -1,0 +1,22 @@
+{
+  "name": "qiita-content",
+  "version": "1.0.0",
+  "description": "Qiita 記事管理リポジトリ（qiita-cli 連携）",
+  "private": true,
+  "scripts": {
+    "preview": "qiita preview",
+    "new": "qiita new",
+    "publish": "qiita publish",
+    "pull": "qiita pull",
+    "lint": "textlint \"public/**/*.md\"",
+    "lint:fix": "textlint --fix \"public/**/*.md\""
+  },
+  "devDependencies": {
+    "@qiita/qiita-cli": "^1.5.0",
+    "textlint": "^14.0.0",
+    "textlint-rule-preset-ja-technical-writing": "^10.0.0",
+    "textlint-rule-preset-ja-spacing": "^2.0.0"
+  },
+  "author": "くーるぜろ",
+  "license": "CC-BY-4.0"
+}

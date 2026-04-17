@@ -1,0 +1,25 @@
+作成しました。サイズ調整の3つのオプションを用意しています:
+
+**`--width`** — 長辺を指定pxにリサイズ（アスペクト比維持）
+```bash
+python heic_to_png.py ~/Pictures --width 1920
+```
+
+**`--scale`** — パーセントで縮小
+```bash
+python heic_to_png.py ~/Pictures --scale 50
+```
+
+**`--max-filesize`** — ファイルサイズ上限（KB）。超える場合は自動で段階的に縮小
+```bash
+python heic_to_png.py ~/Pictures --max-filesize 500
+```
+
+これらは組み合わせも可能です（`--width` + `--max-filesize` など）。他にも `-r` でサブディレクトリ再帰検索、`-o` で出力先指定、`--dry-run` で事前確認ができます。
+
+依存パッケージは `pillow` と `pillow-heif` の2つです:
+```bash
+pip install pillow pillow-heif
+```
+
+[heic_to_png.py](computer:///Users/h.yamamoto/works/project/claude-tools/heic_to_png.py)
